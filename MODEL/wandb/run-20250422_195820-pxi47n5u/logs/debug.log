@@ -1,0 +1,30 @@
+2025-04-22 19:58:20,572 INFO    MainThread:762656 [wandb_setup.py:_flush():68] Current SDK version is 0.19.10
+2025-04-22 19:58:20,572 INFO    MainThread:762656 [wandb_setup.py:_flush():68] Configure stats pid to 762656
+2025-04-22 19:58:20,572 INFO    MainThread:762656 [wandb_setup.py:_flush():68] Loading settings from /home/frida/.config/wandb/settings
+2025-04-22 19:58:20,572 INFO    MainThread:762656 [wandb_setup.py:_flush():68] Loading settings from /media/frida/3376a50a-001d-45d9-89a7-589977ec1b04/SoundingHand/MODEL/wandb/settings
+2025-04-22 19:58:20,572 INFO    MainThread:762656 [wandb_setup.py:_flush():68] Loading settings from environment variables
+2025-04-22 19:58:20,572 INFO    MainThread:762656 [wandb_init.py:setup_run_log_directory():724] Logging user logs to /media/frida/3376a50a-001d-45d9-89a7-589977ec1b04/SoundingHand/MODEL/wandb/run-20250422_195820-pxi47n5u/logs/debug.log
+2025-04-22 19:58:20,572 INFO    MainThread:762656 [wandb_init.py:setup_run_log_directory():725] Logging internal logs to /media/frida/3376a50a-001d-45d9-89a7-589977ec1b04/SoundingHand/MODEL/wandb/run-20250422_195820-pxi47n5u/logs/debug-internal.log
+2025-04-22 19:58:20,572 INFO    MainThread:762656 [wandb_init.py:init():852] calling init triggers
+2025-04-22 19:58:20,572 INFO    MainThread:762656 [wandb_init.py:init():857] wandb.init called with sweep_config: {}
+config: {'_wandb': {}}
+2025-04-22 19:58:20,572 INFO    MainThread:762656 [wandb_init.py:init():893] starting backend
+2025-04-22 19:58:20,572 INFO    MainThread:762656 [wandb_init.py:init():897] sending inform_init request
+2025-04-22 19:58:20,576 INFO    MainThread:762656 [backend.py:_multiprocessing_setup():101] multiprocessing start_methods=fork,spawn,forkserver, using: spawn
+2025-04-22 19:58:20,576 INFO    MainThread:762656 [wandb_init.py:init():907] backend started and connected
+2025-04-22 19:58:20,578 INFO    MainThread:762656 [wandb_init.py:init():1002] updated telemetry
+2025-04-22 19:58:20,578 INFO    MainThread:762656 [wandb_init.py:init():1026] communicating run to backend with 90.0 second timeout
+2025-04-22 19:58:20,891 INFO    MainThread:762656 [wandb_init.py:init():1101] starting run threads in backend
+2025-04-22 19:58:20,914 INFO    MainThread:762656 [wandb_run.py:_console_start():2566] atexit reg
+2025-04-22 19:58:20,914 INFO    MainThread:762656 [wandb_run.py:_redirect():2414] redirect: wrap_raw
+2025-04-22 19:58:20,914 INFO    MainThread:762656 [wandb_run.py:_redirect():2483] Wrapping output streams.
+2025-04-22 19:58:20,914 INFO    MainThread:762656 [wandb_run.py:_redirect():2506] Redirects installed.
+2025-04-22 19:58:20,916 INFO    MainThread:762656 [wandb_init.py:init():1147] run started, returning control to user process
+2025-04-22 19:58:20,916 INFO    MainThread:762656 [wandb_run.py:_config_callback():1429] config_cb None None {'learning_rate': 0.001, 'epochs': 100, 'batch_size': 4, 'model_hidden_dim': 1024, 'optimizer': 'Adam'}
+2025-04-22 20:20:39,003 INFO    MainThread:762656 [wandb_run.py:_finish():2314] finishing run uyoo-Carnegie Mellon University/sounding-hand/pxi47n5u
+2025-04-22 20:20:39,003 INFO    MainThread:762656 [wandb_run.py:_atexit_cleanup():2531] got exitcode: 0
+2025-04-22 20:20:39,003 INFO    MainThread:762656 [wandb_run.py:_restore():2513] restore
+2025-04-22 20:20:39,003 INFO    MainThread:762656 [wandb_run.py:_restore():2519] restore done
+2025-04-22 20:20:46,222 INFO    MainThread:762656 [wandb_run.py:_footer_history_summary_info():4160] rendering history
+2025-04-22 20:20:46,222 INFO    MainThread:762656 [wandb_run.py:_footer_history_summary_info():4192] rendering summary
+2025-04-22 20:20:46,222 INFO    MainThread:762656 [wandb_run.py:_footer_sync_info():4121] logging synced files

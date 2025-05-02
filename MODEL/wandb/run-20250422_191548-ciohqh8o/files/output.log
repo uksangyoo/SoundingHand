@@ -1,0 +1,67 @@
+Epoch 1/100, Train Loss: 0.2813, Val Loss: 0.2534
+Saved new best model with validation loss: 0.2534
+Epoch 2/100, Train Loss: 0.2363, Val Loss: 0.2099
+Saved new best model with validation loss: 0.2099
+Epoch 3/100, Train Loss: 0.2106, Val Loss: 0.1937
+Saved new best model with validation loss: 0.1937
+Epoch 4/100, Train Loss: 0.1972, Val Loss: 0.1766
+Saved new best model with validation loss: 0.1766
+Epoch 5/100, Train Loss: 0.1854, Val Loss: 0.1669
+Saved new best model with validation loss: 0.1669
+Exception in thread Thread-14 (_pin_memory_loop):
+Traceback (most recent call last):
+  File "/home/frida/anaconda3/envs/audio_mesh/lib/python3.10/threading.py", line 1016, in _bootstrap_inner
+    self.run()
+  File "/home/frida/anaconda3/envs/audio_mesh/lib/python3.10/threading.py", line 953, in run
+    self._target(*self._args, **self._kwargs)
+  File "/home/frida/anaconda3/envs/audio_mesh/lib/python3.10/site-packages/torch/utils/data/_utils/pin_memory.py", line 59, in _pin_memory_loop
+    do_one_step()
+  File "/home/frida/anaconda3/envs/audio_mesh/lib/python3.10/site-packages/torch/utils/data/_utils/pin_memory.py", line 35, in do_one_step
+    r = in_queue.get(timeout=MP_STATUS_CHECK_INTERVAL)
+  File "/home/frida/anaconda3/envs/audio_mesh/lib/python3.10/multiprocessing/queues.py", line 122, in get
+    return _ForkingPickler.loads(res)
+  File "/home/frida/anaconda3/envs/audio_mesh/lib/python3.10/site-packages/torch/multiprocessing/reductions.py", line 541, in rebuild_storage_fd
+    fd = df.detach()
+  File "/home/frida/anaconda3/envs/audio_mesh/lib/python3.10/multiprocessing/resource_sharer.py", line 57, in detach
+    with _resource_sharer.get_connection(self._id) as conn:
+  File "/home/frida/anaconda3/envs/audio_mesh/lib/python3.10/multiprocessing/resource_sharer.py", line 86, in get_connection
+    c = Client(address, authkey=process.current_process().authkey)
+  File "/home/frida/anaconda3/envs/audio_mesh/lib/python3.10/multiprocessing/connection.py", line 508, in Client
+    answer_challenge(c, authkey)
+  File "/home/frida/anaconda3/envs/audio_mesh/lib/python3.10/multiprocessing/connection.py", line 757, in answer_challenge
+    response = connection.recv_bytes(256)        # reject large message
+  File "/home/frida/anaconda3/envs/audio_mesh/lib/python3.10/multiprocessing/connection.py", line 216, in recv_bytes
+    buf = self._recv_bytes(maxlength)
+  File "/home/frida/anaconda3/envs/audio_mesh/lib/python3.10/multiprocessing/connection.py", line 414, in _recv_bytes
+    buf = self._recv(4)
+  File "/home/frida/anaconda3/envs/audio_mesh/lib/python3.10/multiprocessing/connection.py", line 379, in _recv
+    chunk = read(handle, remaining)
+ConnectionResetError: [Errno 104] Connection reset by peer
+Traceback (most recent call last):
+  File "/media/frida/3376a50a-001d-45d9-89a7-589977ec1b04/SoundingHand/MODEL/model.py", line 605, in <module>
+    trained_model = train_model(model, train_loader, val_loader, num_epochs=100, device=device)
+  File "/media/frida/3376a50a-001d-45d9-89a7-589977ec1b04/SoundingHand/MODEL/model.py", line 470, in train_model
+    logits = model(audio, mesh)
+  File "/home/frida/anaconda3/envs/audio_mesh/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1736, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+  File "/home/frida/anaconda3/envs/audio_mesh/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1747, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "/media/frida/3376a50a-001d-45d9-89a7-589977ec1b04/SoundingHand/MODEL/model.py", line 381, in forward
+    mesh_global_features, mesh_vertex_features = self.mesh_encoder(mesh_data)
+  File "/home/frida/anaconda3/envs/audio_mesh/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1736, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+  File "/home/frida/anaconda3/envs/audio_mesh/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1747, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "/media/frida/3376a50a-001d-45d9-89a7-589977ec1b04/SoundingHand/MODEL/model.py", line 302, in forward
+    x = self.conv3(x, edge_index)
+  File "/home/frida/anaconda3/envs/audio_mesh/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1736, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+  File "/home/frida/anaconda3/envs/audio_mesh/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1747, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "/home/frida/anaconda3/envs/audio_mesh/lib/python3.10/site-packages/torch_geometric/nn/conv/gat_conv.py", line 347, in forward
+    edge_index, edge_attr = remove_self_loops(
+  File "/home/frida/anaconda3/envs/audio_mesh/lib/python3.10/site-packages/torch_geometric/utils/loop.py", line 115, in remove_self_loops
+    if not torch.jit.is_scripting() and isinstance(edge_index, EdgeIndex):
+  File "/home/frida/anaconda3/envs/audio_mesh/lib/python3.10/site-packages/torch/_jit_internal.py", line 103, in is_scripting
+    def is_scripting() -> bool:
+KeyboardInterrupt

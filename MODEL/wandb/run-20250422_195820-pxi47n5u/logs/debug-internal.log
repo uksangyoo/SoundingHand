@@ -1,0 +1,16 @@
+{"time":"2025-04-22T19:58:20.577488529-04:00","level":"INFO","msg":"stream: starting","core version":"0.19.10","symlink path":"/media/frida/3376a50a-001d-45d9-89a7-589977ec1b04/SoundingHand/MODEL/wandb/run-20250422_195820-pxi47n5u/logs/debug-core.log"}
+{"time":"2025-04-22T19:58:20.771489275-04:00","level":"INFO","msg":"created new stream","id":"pxi47n5u"}
+{"time":"2025-04-22T19:58:20.771505195-04:00","level":"INFO","msg":"stream: started","id":"pxi47n5u"}
+{"time":"2025-04-22T19:58:20.771568728-04:00","level":"INFO","msg":"sender: started","stream_id":"pxi47n5u"}
+{"time":"2025-04-22T19:58:20.771591204-04:00","level":"INFO","msg":"handler: started","stream_id":"pxi47n5u"}
+{"time":"2025-04-22T19:58:20.771566955-04:00","level":"INFO","msg":"writer: Do: started","stream_id":"pxi47n5u"}
+{"time":"2025-04-22T19:58:20.891973095-04:00","level":"INFO","msg":"Starting system monitor"}
+{"time":"2025-04-22T20:20:39.004102477-04:00","level":"INFO","msg":"Stopping system monitor"}
+{"time":"2025-04-22T20:20:39.004675242-04:00","level":"INFO","msg":"Stopped system monitor"}
+{"time":"2025-04-22T20:20:40.005065507-04:00","level":"INFO","msg":"handler: operation stats","stats":{"operations":[{"desc":"uploading checkpoints/checkpoint_epoch_100.pt","runtime_seconds":0.912179186,"progress":"6.7MB/11.1MB"},{"desc":"uploading checkpoints/best_model.pt","runtime_seconds":0.912170464,"progress":"8.8MB/11.1MB"},{"desc":"uploading checkpoints/checkpoint_epoch_40.pt","runtime_seconds":0.408531284,"progress":"1.2MB/11.1MB"},{"desc":"uploading checkpoints/checkpoint_epoch_50.pt","runtime_seconds":0.408525229,"progress":"1.1MB/11.1MB"},{"desc":"uploading checkpoints/checkpoint_epoch_90.pt","runtime_seconds":0.408523825,"progress":"1.2MB/11.1MB"},{"desc":"uploading checkpoints/checkpoint_epoch_70.pt","runtime_seconds":0.408516001,"progress":"1.0MB/11.1MB"},{"desc":"uploading checkpoints/checkpoint_epoch_20.pt","runtime_seconds":0.408514638,"progress":"1.1MB/11.1MB"},{"desc":"uploading checkpoints/checkpoint_epoch_30.pt","runtime_seconds":0.408513819,"progress":"816.0KB/11.1MB"},{"desc":"uploading checkpoints/checkpoint_epoch_60.pt","runtime_seconds":0.408513072,"progress":"1.1MB/11.1MB"},{"desc":"uploading checkpoints/checkpoint_epoch_80.pt","runtime_seconds":0.408511958,"progress":"1.0MB/11.1MB"}],"total_operations":11}}
+{"time":"2025-04-22T20:20:46.107982218-04:00","level":"INFO","msg":"fileTransfer: Close: file transfer manager closed"}
+{"time":"2025-04-22T20:20:46.404565591-04:00","level":"INFO","msg":"stream: closing","id":"pxi47n5u"}
+{"time":"2025-04-22T20:20:46.404599954-04:00","level":"INFO","msg":"handler: closed","stream_id":"pxi47n5u"}
+{"time":"2025-04-22T20:20:46.4046072-04:00","level":"INFO","msg":"writer: Close: closed","stream_id":"pxi47n5u"}
+{"time":"2025-04-22T20:20:46.40464616-04:00","level":"INFO","msg":"sender: closed","stream_id":"pxi47n5u"}
+{"time":"2025-04-22T20:20:46.404648296-04:00","level":"INFO","msg":"stream: closed","id":"pxi47n5u"}

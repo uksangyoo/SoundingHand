@@ -1,0 +1,13 @@
+*.mp4
+*.png
+*.obj
+*.ply
+*.h5
+*.npy
+*.wav
+*.json
+*.csv
+*.txt
+*.jsonl
+*.jsonl.gz
+*.jsonl.gz.part
