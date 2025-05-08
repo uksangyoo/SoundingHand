@@ -12,8 +12,8 @@ import gc
 from sam2.build_sam import build_sam2_video_predictor
 
 # Constants
-SAM2_CHECKPOINT = "/home/frida/packages/sam2/checkpoints/sam2.1_hiera_large.pt"
-SAM2_CONFIG = "configs/sam2.1/sam2.1_hiera_l.yaml"
+SAM2_CHECKPOINT = "/home/frida/packages/sam2/checkpoints/sam2.1_hiera_small.pt"
+SAM2_CONFIG = "configs/sam2.1/sam2.1_hiera_s.yaml"
 
 # Setup device
 if torch.cuda.is_available():
@@ -214,12 +214,12 @@ def save_point_cloud(points, rgb=None, output_path="point_cloud.ply"):
     pcd = None
     gc.collect()
 
-def process_h5_video_frames(h5_path, video_dir, start_frame, num_frames, base_output_folder=None, cam_id=None, initial_clicks=None, initial_labels=None):
+def process_h5_video_frames(h5_path, video_dir, start_frame, num_frames, base_output_folder=None, cam_id=None):
     """
     Extract frames from H5 file and save as images.
     Use pure integer filenames to comply with SAM2 requirements.
     Returns the click points, click labels, and the end_frame.
-    Now accepts optional initial clicks/labels to reuse from previous batches.
+    Always prompts for new clicks for each batch.
     Optionally saves clicks as .npz if base_output_folder and cam_id are provided.
     """
     os.makedirs(video_dir, exist_ok=True)
@@ -229,43 +229,31 @@ def process_h5_video_frames(h5_path, video_dir, start_frame, num_frames, base_ou
         end_frame = min(start_frame + num_frames, total_frames_in_file)
         batch_frames = end_frame - start_frame
         
-        # Check if we need to get new clicks or reuse existing ones
-        if initial_clicks is None or initial_labels is None:
-            # Save first frame of this batch for interactive selection
-            first_frame = h5_file['rgb'][start_frame][...].copy()
-            preview_path = os.path.join(os.path.dirname(video_dir), f"preview_batch_{start_frame}.jpg")
-            cv2.imwrite(preview_path, first_frame)
-            
-            # Let user select points with interactive clicks
-            print(f"Please select points for batch starting at frame {start_frame}. Use 'p' for positive clicks, 'n' for negative clicks, 'r' to reset, and 'q' when done.")
-            click_points, click_labels = get_interactive_clicks(first_frame)
-            
-            if click_points is None or len(click_points) == 0:
-                print("No points selected. Skipping this batch.")
-                if os.path.exists(preview_path):
-                    os.remove(preview_path)
-                return None, None, end_frame
-            
-            # Save clicks as .npz if output folder and cam_id are provided
-            if base_output_folder is not None and cam_id is not None:
-                npz_path = os.path.join(base_output_folder, f"clicks_cam{cam_id}.npz")
-                print(f"Saving clicks to {npz_path}")
-                np.savez(npz_path, click_points=click_points, click_labels=click_labels)
-            
-            # Remove preview image after selection
-            os.remove(preview_path)
-        else:
-            # Reuse existing clicks
-            click_points = initial_clicks
-            click_labels = initial_labels
-            print(f"Reusing existing clicks for batch starting at frame {start_frame}")
+        # Always prompt for new clicks for each batch
+        first_frame = h5_file['rgb'][start_frame][...].copy()
+        preview_path = os.path.join(os.path.dirname(video_dir), f"preview_batch_{start_frame}.jpg")
+        cv2.imwrite(preview_path, first_frame)
         
-        # Save frames with sequential integer filenames for SAM2 compatibility
-        # but keep track of the original frame numbers
+        print(f"Please select points for batch starting at frame {start_frame}. Use 'p' for positive clicks, 'n' for negative clicks, 'r' to reset, and 'q' when done.")
+        click_points, click_labels = get_interactive_clicks(first_frame)
+        
+        if click_points is None or len(click_points) == 0:
+            print("No points selected. Skipping this batch.")
+            if os.path.exists(preview_path):
+                os.remove(preview_path)
+            return None, None, end_frame
+        
+        if base_output_folder is not None and cam_id is not None:
+            npz_path = os.path.join(base_output_folder, f"clicks_cam{cam_id}.npz")
+            print(f"Saving clicks to {npz_path}")
+            np.savez(npz_path, click_points=click_points, click_labels=click_labels)
+        
+        os.remove(preview_path)
+        
         print(f"Extracting {batch_frames} frames (from {start_frame} to {end_frame-1}) to {video_dir}")
         for i, original_idx in enumerate(range(start_frame, end_frame)):
             frame = h5_file['rgb'][original_idx][...].copy()
-            frame_path = os.path.join(video_dir, f"{i}.jpg")  # Use sequential integers for SAM2
+            frame_path = os.path.join(video_dir, f"{i}.jpg")
             cv2.imwrite(frame_path, frame)
             
             if i % 10 == 0:
@@ -276,10 +264,11 @@ def process_h5_video_frames(h5_path, video_dir, start_frame, num_frames, base_ou
     
     return click_points, click_labels, end_frame
 
-def segment_video_and_extract_point_clouds(video_dir, h5_path, output_folder, click_points, click_labels, start_frame, cam_id=0):
+def segment_video_and_extract_point_clouds(video_dir, h5_path, output_folder, click_points, click_labels, start_frame, cam_id=0, initial_mask=None):
     """
     Segment video and extract point clouds.
     Start_frame specifies the original frame number in the H5 file.
+    Accepts either clicks/labels or an initial mask for the first frame.
     """
     # Setup output folders
     pcd_output_folder = os.path.join(output_folder, 'pointclouds')
@@ -288,12 +277,10 @@ def segment_video_and_extract_point_clouds(video_dir, h5_path, output_folder, cl
     os.makedirs(mask_output_folder, exist_ok=True)
     
     if cam_id == 0:
-    # ZED camera 0 parameters
         fx = 1513.7213134765625
         fy = 1513.7213134765625
         cx = 969.6605834960938
         cy = 528.1881713867188
-        # ZED camera 1 parameters
     else:
         fx = 1509.295654296875
         fy = 1509.295654296875
@@ -302,53 +289,66 @@ def segment_video_and_extract_point_clouds(video_dir, h5_path, output_folder, cl
     depth_scale = 0.001  # convert mm to meters
     max_depth = 10.0
     
-    # Get frame names
     frame_names = [
         p for p in os.listdir(video_dir)
         if os.path.splitext(p)[-1] in [".jpg", ".jpeg", ".JPG", ".JPEG"]
     ]
-    # Sort by frame index - SAM2 expects pure integer filenames
     frame_names.sort(key=lambda p: int(os.path.splitext(p)[0]))
     
     if not frame_names:
         print("No frames found in directory")
-        return None
+        return None, None, None
     
-    # Initialize SAM2 predictor
     print("Initializing SAM2 video predictor...")
     predictor = build_sam2_video_predictor(SAM2_CONFIG, SAM2_CHECKPOINT, device=device)
-    
-    # Initialize inference state
     inference_state = predictor.init_state(video_path=video_dir)
     predictor.reset_state(inference_state)
-    
-    # Set object ID
     obj_id = 1
-    ann_frame_idx = 0  # Always use the first frame in the batch for annotation
-    
-    # Add clicks to the first frame
-    print("Adding clicks to first frame...")
-    _, out_obj_ids, out_mask_logits = predictor.add_new_points_or_box(
-        inference_state=inference_state,
-        frame_idx=ann_frame_idx,
-        obj_id=obj_id,
-        points=click_points,
-        labels=click_labels,
-    )
-    
+    ann_frame_idx = 0
+
+    # Add mask or clicks to the first frame
+    if initial_mask is not None and np.sum(initial_mask) > 100:
+        print("Adding previous mask to first frame...")
+        # If the predictor supports mask input, use it. Otherwise, fallback to clicks.
+        if hasattr(predictor, 'add_new_mask'):
+            _, out_obj_ids, out_mask_logits = predictor.add_new_mask(
+                inference_state=inference_state,
+                frame_idx=ann_frame_idx,
+                obj_id=obj_id,
+                mask=initial_mask.astype(np.uint8)
+            )
+        else:
+            print("Warning: Predictor does not support mask input. Please update your SAM2 interface.")
+            return None, None, None
+        click_points, click_labels = None, None
+    elif click_points is not None and click_labels is not None:
+        print("Adding clicks to first frame...")
+        _, out_obj_ids, out_mask_logits = predictor.add_new_points_or_box(
+            inference_state=inference_state,
+            frame_idx=ann_frame_idx,
+            obj_id=obj_id,
+            points=click_points,
+            labels=click_labels,
+        )
+    else:
+        print("No valid initialization for segmentation. Skipping batch.")
+        return None, None, None
+
     # Save visualization of initial segmentation
     plt.figure(figsize=(9, 6))
-    plt.title(f"Initial frame {start_frame} with clicks")
+    plt.title(f"Initial frame {start_frame} with initialization")
     first_frame = cv2.imread(os.path.join(video_dir, frame_names[ann_frame_idx]))
-    plt.imshow(cv2.cvtColor(first_frame, cv2.COLOR_BGR2RGB))
-    show_points(click_points, click_labels, plt.gca())
-    show_mask((out_mask_logits[0] > 0.0).cpu().numpy(), plt.gca(), obj_id=out_obj_ids[0])
-    plt.savefig(os.path.join(output_folder, f'first_frame_{start_frame:05d}_with_clicks.png'))
+    if click_points is not None and click_labels is not None:
+        plt.imshow(cv2.cvtColor(first_frame, cv2.COLOR_BGR2RGB))
+        show_points(click_points, click_labels, plt.gca())
+        show_mask((out_mask_logits[0] > 0.0).cpu().numpy(), plt.gca(), obj_id=out_obj_ids[0])
+    else:
+        plt.imshow(cv2.cvtColor(first_frame, cv2.COLOR_BGR2RGB))
+        show_mask((out_mask_logits[0] > 0.0).cpu().numpy(), plt.gca(), obj_id=out_obj_ids[0])
+    plt.savefig(os.path.join(output_folder, f'first_frame_{start_frame:05d}_with_init.png'))
     plt.close()
-    
-    # Return the mask from the first frame to potentially reuse for subsequent batches
-    initial_mask = (out_mask_logits[0] > 0.0).cpu().numpy()
-    
+    initial_mask_out = (out_mask_logits[0] > 0.0).cpu().numpy()
+
     # Run propagation and save masks
     print("Propagating segmentation through video...")
     video_segments = {}  # video_segments contains the per-frame segmentation results
@@ -471,7 +471,7 @@ def segment_video_and_extract_point_clouds(video_dir, h5_path, output_folder, cl
                 torch.cuda.empty_cache()
     
     # Return both the initial clicks and mask for potential reuse
-    return click_points, click_labels, initial_mask
+    return click_points, click_labels, initial_mask_out
 
 def get_last_frame_mask(output_folder, previous_frame_idx):
     """
@@ -486,68 +486,44 @@ def get_last_frame_mask(output_folder, previous_frame_idx):
 
 def process_in_batches(h5_path, base_output_folder, batch_size=300, cam_id=0):
     """
-    Process the entire H5 file in batches, only requesting clicks for the first batch.
+    Process the entire H5 file in batches, always prompting for new annotation for each batch.
     """
     os.makedirs(base_output_folder, exist_ok=True)
     
-    # Get total number of frames in H5 file
     with h5py.File(h5_path, 'r') as h5_file:
         total_frames = h5_file['rgb'].shape[0]
-    
     print(f"Total frames in H5 file: {total_frames}")
-    
-    # Process in batches
     current_frame = 0
     batch_number = 1
-    initial_clicks = None
-    initial_labels = None
-    
     while current_frame < total_frames-1:
         print(f"\n=== Processing Batch {batch_number} (starting at frame {current_frame}) ===\n")
-        
-        # Create temporary directory for this batch's frames
         batch_video_dir = os.path.join(base_output_folder, f"temp_frames_batch_{batch_number}")
         os.makedirs(batch_video_dir, exist_ok=True)
-        
         try:
-            # Step 1: Extract frames for this batch, potentially reusing clicks from before
             click_points, click_labels, next_frame = process_h5_video_frames(
-                h5_path, batch_video_dir, current_frame, batch_size, base_output_folder, cam_id, initial_clicks, initial_labels
+                h5_path, batch_video_dir, current_frame, batch_size, base_output_folder, cam_id
             )
-            
             if click_points is not None:
-                # Step 2: Run segmentation and point cloud extraction for this batch
                 updated_clicks, updated_labels, _ = segment_video_and_extract_point_clouds(
                     batch_video_dir, h5_path, base_output_folder, click_points, click_labels, current_frame, cam_id
                 )
-                
-                # Save these clicks for the next batch
-                initial_clicks = updated_clicks
-                initial_labels = updated_labels
-            
-            # Update frame counter and batch number
             current_frame = next_frame
             batch_number += 1
-        
         except Exception as e:
             print(f"Error processing batch {batch_number}: {e}")
             import traceback
             traceback.print_exc()
-        
         finally:
-            # Clean up temporary files for this batch
             print(f"Cleaning up temporary files for batch {batch_number-1}...")
             import shutil
             if os.path.exists(batch_video_dir):
                 shutil.rmtree(batch_video_dir)
-            
-            # Give the system a moment to release resources
             gc.collect()
             if torch.cuda.is_available():
                 torch.cuda.empty_cache()
-            print("Waiting 5 seconds before starting the next batch...")
-            import time
-            time.sleep(5)
+            # print("Waiting 5 seconds before starting the next batch...")
+            # import time
+            # time.sleep(5)
 
 # Additional function to automate the process with one-time annotation
 def process_with_one_time_annotation(h5_path, base_output_folder, batch_size=300, cam_id=0):
@@ -639,12 +615,176 @@ def process_with_one_time_annotation(h5_path, base_output_folder, batch_size=300
             # import time
             # time.sleep(5)
 
+def batch_annotate_frames(h5_path, base_output_folder, batch_size=300, cam_id=0):
+    """
+    First step: Annotate all frames that need annotation in batches.
+    This allows users to go through all frames and annotate them before running segmentation.
+    """
+    os.makedirs(base_output_folder, exist_ok=True)
+    clicks_folder = os.path.join(base_output_folder, "clicks")
+    os.makedirs(clicks_folder, exist_ok=True)
+    
+    with h5py.File(h5_path, 'r') as h5_file:
+        total_frames = h5_file['rgb'].shape[0]
+    print(f"Total frames in H5 file: {total_frames}")
+    
+    current_frame = 0
+    batch_number = 1
+    
+    while current_frame < total_frames-1:
+        print(f"\n=== Checking Batch {batch_number} (starting at frame {current_frame}) ===\n")
+        
+        # Check if clicks already exist for this batch
+        npz_path = os.path.join(clicks_folder, f"clicks_batch_{current_frame}.npz")
+        if os.path.exists(npz_path):
+            print(f"Skipping batch {batch_number} - clicks already exist at {npz_path}")
+            current_frame += batch_size
+            batch_number += 1
+            continue
+            
+        batch_video_dir = os.path.join(base_output_folder, f"temp_frames_batch_{batch_number}")
+        os.makedirs(batch_video_dir, exist_ok=True)
+        
+        try:
+            # Extract frames for this batch
+            next_frame = min(current_frame + batch_size, total_frames)
+            
+            print(f"Extracting {next_frame - current_frame} frames (from {current_frame} to {next_frame-1}) to {batch_video_dir}")
+            with h5py.File(h5_path, 'r') as h5_file:
+                for i, original_idx in enumerate(range(current_frame, next_frame)):
+                    frame = h5_file['rgb'][original_idx][...].copy()
+                    frame_path = os.path.join(batch_video_dir, f"{i}.jpg")
+                    cv2.imwrite(frame_path, frame)
+            
+            # Get clicks for this batch
+            first_frame = cv2.imread(os.path.join(batch_video_dir, "0.jpg"))
+            preview_path = os.path.join(clicks_folder, f"preview_batch_{current_frame}.jpg")
+            cv2.imwrite(preview_path, first_frame)
+            
+            print(f"Please select points for batch starting at frame {current_frame}. Use 'p' for positive clicks, 'n' for negative clicks, 'r' to reset, and 'q' when done.")
+            click_points, click_labels = get_interactive_clicks(first_frame)
+            
+            if click_points is not None and len(click_points) > 0:
+                # Save clicks for this batch
+                np.savez(npz_path, click_points=click_points, click_labels=click_labels)
+                print(f"Saved clicks to {npz_path}")
+            
+            current_frame = next_frame
+            batch_number += 1
+            
+        except Exception as e:
+            print(f"Error processing batch {batch_number}: {e}")
+            import traceback
+            traceback.print_exc()
+        
+        finally:
+            # Clean up temporary files
+            print(f"Cleaning up temporary files for batch {batch_number-1}...")
+            import shutil
+            if os.path.exists(batch_video_dir):
+                shutil.rmtree(batch_video_dir)
+            if os.path.exists(preview_path):
+                os.remove(preview_path)
+            
+            gc.collect()
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+
+def batch_segment_frames(h5_path, base_output_folder, batch_size=300, cam_id=0):
+    """
+    Second step: Process all frames using the saved annotations.
+    This runs after all annotations are complete.
+    """
+    clicks_folder = os.path.join(base_output_folder, "clicks")
+    if not os.path.exists(clicks_folder):
+        print(f"No clicks folder found at {clicks_folder}. Please run batch_annotate_frames first.")
+        return
+    
+    with h5py.File(h5_path, 'r') as h5_file:
+        total_frames = h5_file['rgb'].shape[0]
+    print(f"Total frames in H5 file: {total_frames}")
+    
+    current_frame = 0
+    batch_number = 1
+    
+    while current_frame < total_frames-1:
+        print(f"\n=== Processing Batch {batch_number} (starting at frame {current_frame}) ===\n")
+        batch_video_dir = os.path.join(base_output_folder, f"temp_frames_batch_{batch_number}")
+        os.makedirs(batch_video_dir, exist_ok=True)
+        
+        try:
+            # Load clicks for this batch
+            npz_path = os.path.join(clicks_folder, f"clicks_batch_{current_frame}.npz")
+            if not os.path.exists(npz_path):
+                print(f"No clicks found for batch starting at frame {current_frame}. Skipping...")
+                current_frame += batch_size
+                batch_number += 1
+                continue
+            
+            clicks_data = np.load(npz_path)
+            click_points = clicks_data['click_points']
+            click_labels = clicks_data['click_labels']
+            
+            # Extract frames for this batch
+            next_frame = min(current_frame + batch_size, total_frames)
+            print(f"Extracting {next_frame - current_frame} frames (from {current_frame} to {next_frame-1}) to {batch_video_dir}")
+            
+            with h5py.File(h5_path, 'r') as h5_file:
+                for i, original_idx in enumerate(range(current_frame, next_frame)):
+                    frame = h5_file['rgb'][original_idx][...].copy()
+                    frame_path = os.path.join(batch_video_dir, f"{i}.jpg")
+                    cv2.imwrite(frame_path, frame)
+                    
+                    if i % 10 == 0:
+                        print(f"Processed temporary frame {i}/{next_frame - current_frame} (original frame {original_idx})")
+                        gc.collect()
+                        if torch.cuda.is_available():
+                            torch.cuda.empty_cache()
+            
+            # Run segmentation and point cloud extraction
+            segment_video_and_extract_point_clouds(
+                batch_video_dir, h5_path, base_output_folder, click_points, click_labels, current_frame, cam_id
+            )
+            
+            current_frame = next_frame
+            batch_number += 1
+            
+        except Exception as e:
+            print(f"Error processing batch {batch_number}: {e}")
+            import traceback
+            traceback.print_exc()
+        
+        finally:
+            # Clean up temporary files
+            print(f"Cleaning up temporary files for batch {batch_number-1}...")
+            import shutil
+            if os.path.exists(batch_video_dir):
+                shutil.rmtree(batch_video_dir)
+            
+            # Aggressive memory cleanup after each batch
+            if 'clicks_data' in locals(): del clicks_data
+            if 'click_points' in locals(): del click_points
+            if 'click_labels' in locals(): del click_labels
+            if 'frame' in locals(): del frame
+            
+            gc.collect()
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+                # Force CUDA to synchronize and clear cache
+                torch.cuda.synchronize()
 
 if __name__ == "__main__":
-    DATA_ROOT = "/media/frida/Extreme SSD/sounding_hand/0422"
-    SAVE_ROOT = "/media/frida/3376a50a-001d-45d9-89a7-589977ec1b04/SoundingHand/DATA"
-    # object_directories = ["campbell_pla", "spam_pla"]
-    object_directories = ["campbell_pla", "spam_pla"]
+    DATA_ROOT = "/media/frida/Extreme SSD/sounding_hand/yuemin"
+    SAVE_ROOT = "/media/frida/3376a50a-001d-45d9-89a7-589977ec1b04/SoundingHand/yuemin"
+    # object_directories = ["campbell_pla","campbell_real", "cheese", "cheezit", "clamp", 
+    #                       "drill", "juice", "knife", "marker", "mug", "mustard", "ranch",
+    #                       "scissors", "screwdriver", "spam_pla", "spam_real", "wrench"]
+    object_directories = ["campbell_real", "cheese", "cheezit", "clamp", 
+                        "drill", "juice", "knife", "marker", "mug", "mustard", "ranch",
+                        "scissors", "screwdriver", "spam_pla", "spam_real", "wrench"]
+    
+    # First phase: Annotation
+    print("\n=== STARTING ANNOTATION PHASE ===\n")
     for object_directory in object_directories:
         save_directory = os.path.join(SAVE_ROOT, object_directory)
         directory = os.path.join(DATA_ROOT, object_directory, "h5")
@@ -652,34 +792,49 @@ if __name__ == "__main__":
         for h5_file in os.listdir(directory):
             h5_path = os.path.join(directory, h5_file)
             
-            # Check and process camera 0
+            # Process camera 0
             base_output_folder = os.path.join(save_directory, h5_file, "output0")
-            if not os.path.exists(base_output_folder + "/pointclouds"):
+            if not os.path.exists(os.path.join(base_output_folder, "pointclouds")):
                 os.makedirs(base_output_folder, exist_ok=True)
-                print(f"Processing {base_output_folder}")
+                print(f"\nProcessing annotations for {base_output_folder}")
                 h5_files = sorted([f for f in os.listdir(h5_path) if f.endswith('.h5')])
-                process_in_batches(os.path.join(h5_path, h5_files[0]), base_output_folder, batch_size=500, cam_id=0)
+                batch_annotate_frames(os.path.join(h5_path, h5_files[0]), base_output_folder, batch_size=700, cam_id=0)
             else:
-                print(f"Skipping {base_output_folder} - already exists")
+                print(f"Skipping {base_output_folder} - pointclouds directory already exists")
             
-            # Check and process camera 1
+            # Process camera 1
             base_output_folder = os.path.join(save_directory, h5_file, "output1")
-            if not os.path.exists(base_output_folder+ "/pointclouds"):
+            if not os.path.exists(os.path.join(base_output_folder, "pointclouds")):
                 os.makedirs(base_output_folder, exist_ok=True)
-                print(f"Processing {base_output_folder}")
+                print(f"\nProcessing annotations for {base_output_folder}")
                 h5_files = sorted([f for f in os.listdir(h5_path) if f.endswith('.h5')])
-                process_in_batches(os.path.join(h5_path, h5_files[1]), base_output_folder, batch_size=500, cam_id=1)
+                batch_annotate_frames(os.path.join(h5_path, h5_files[1]), base_output_folder, batch_size=700, cam_id=1)
             else:
-                print(f"Skipping {base_output_folder} - already exists")
-
-    # base_output_folder = "/media/frida/3376a50a-001d-45d9-89a7-589977ec1b04/SoundingHand/DATA/0419_dual_cam_toy_example/output1"
-    # try:
-    #     # Process the entire file in batches of 300 frames
-    #     process_in_batches(h5_path, base_output_folder, batch_size=1000)
-        
-    #     print("All batches processed successfully!")
+                print(f"Skipping {base_output_folder} - pointclouds directory already exists")
     
-    # except Exception as e:
-    #     print(f"Error during batch processing: {e}")
-    #     import traceback
-    #     traceback.print_exc()
+    # Second phase: Segmentation
+    print("\n=== STARTING SEGMENTATION PHASE ===\n")
+    for object_directory in object_directories:
+        save_directory = os.path.join(SAVE_ROOT, object_directory)
+        directory = os.path.join(DATA_ROOT, object_directory, "h5")
+
+        for h5_file in os.listdir(directory):
+            h5_path = os.path.join(directory, h5_file)
+            
+            # Process camera 0
+            base_output_folder = os.path.join(save_directory, h5_file, "output0")
+            if not os.path.exists(os.path.join(base_output_folder, "pointclouds")):
+                print(f"\nProcessing segmentation for {base_output_folder}")
+                h5_files = sorted([f for f in os.listdir(h5_path) if f.endswith('.h5')])
+                batch_segment_frames(os.path.join(h5_path, h5_files[0]), base_output_folder, batch_size=700, cam_id=0)
+            else:
+                print(f"Skipping {base_output_folder} - pointclouds directory already exists")
+            
+            # Process camera 1
+            base_output_folder = os.path.join(save_directory, h5_file, "output1")
+            if not os.path.exists(os.path.join(base_output_folder, "pointclouds")):
+                print(f"\nProcessing segmentation for {base_output_folder}")
+                h5_files = sorted([f for f in os.listdir(h5_path) if f.endswith('.h5')])
+                batch_segment_frames(os.path.join(h5_path, h5_files[1]), base_output_folder, batch_size=700, cam_id=1)
+            else:
+                print(f"Skipping {base_output_folder} - pointclouds directory already exists")
