@@ -7,73 +7,100 @@ from scipy.spatial.transform import Rotation as R
 import pickle
 
 # ---- CONFIG ----
-# Paths (edit as needed)
-dataset_path = "/media/frida/3376a50a-001d-45d9-89a7-589977ec1b04/SoundingHand/DATA/campbell_pla/t1"
-extrinsics_path = "camera_intrinsics_extrinsics/extrinsics.json"
-object_mesh_path = "/media/frida/3376a50a-001d-45d9-89a7-589977ec1b04/SoundingHand/DATA/objects/campbell_pla.stl"
-save_path = "/media/frida/3376a50a-001d-45d9-89a7-589977ec1b04/SoundingHand/PREP/camera_intrinsics_extrinsics/campbell_pla_T.npy"
+# Base paths
+DATA_ROOT = "/media/frida/Extreme SSD/sounding_hand/yuemin"
+SAVE_ROOT = "/media/frida/3376a50a-001d-45d9-89a7-589977ec1b04/SoundingHand/DATA/yuemin"
+OBJECT_ROOT = "/media/frida/3376a50a-001d-45d9-89a7-589977ec1b04/SoundingHand/Object"
+EXTRINSICS_ROOT = "/media/frida/3376a50a-001d-45d9-89a7-589977ec1b04/SoundingHand/DATA/cam_intrinsics_extrinsics"
 
-# ---- Prompt for ArUco pickle and frame ----
-aruco_data_path = '/media/frida/Extreme SSD/sounding_hand/0422/campbell_pla/object_cam0/t1_obj.pickle'
-frame_number = int(input("Enter frame number to visualize: ").strip())
+# List of objects to process
+object_directories = ["campbell_pla", "campbell_real", "cheese", "cheezit", "clamp", 
+                     "drill", "juice", "knife", "marker", "mug", "mustard", "ranch",
+                     "scissors", "screwdriver", "spam_pla", "spam_real", "wrench"]
 
-# Point cloud paths
-cam0_pcd_path = dataset_path + f"/output0/pointclouds/frame_{frame_number:05d}_full.ply"
-cam1_pcd_path = dataset_path + f"/output1/pointclouds/frame_{frame_number:05d}_full.ply"
-
-# ---- Load point clouds ----
-print(f"Loading point clouds for frame {frame_number}...")
-cam0_pcd = o3d.io.read_point_cloud(cam0_pcd_path)
-cam1_pcd = o3d.io.read_point_cloud(cam1_pcd_path)
-
-# ---- Load extrinsics ----
-import json
-with open(extrinsics_path, 'r') as f:
-    extrinsics = json.load(f)
-T = np.array(extrinsics['T'])
-T_inv = np.linalg.inv(T)
-
-# ---- Transform cam1 to cam0 frame ----
-cam1_pcd.transform(T_inv)
-
-# ---- Load object mesh ----
-object_mesh = o3d.io.read_triangle_mesh(object_mesh_path)
-object_mesh.compute_vertex_normals()
-
-# ---- Load ArUco marker transformation for this frame ----
-with open(aruco_data_path, "rb") as f:
-    aruco_data = pickle.load(f)
-if frame_number >= len(aruco_data):
-    print(f"Frame {frame_number} not in ArUco data (max {len(aruco_data)-1})")
-    sys.exit(1)
-if aruco_data[frame_number]["transformation"] is None:
-    print(f"No ArUco marker detected in frame {frame_number}")
-    sys.exit(1)
-object_T = np.array(aruco_data[frame_number]["transformation"])
-print("Loaded ArUco marker transformation for frame", frame_number)
-
-# ---- Initial transformation (identity or load previous) ----
-fine_tune_T = np.eye(4)
-if os.path.exists(save_path):
-    try:
-        fine_tune_T = np.load(save_path)
-        if fine_tune_T.shape != (4, 4):
-            print(f"Warning: Loaded transformation from {save_path} is not 4x4, using identity.")
+def process_object(object_name):
+    print(f"\n=== Processing {object_name} ===")
+    
+    # Setup paths for this object
+    dataset_path = os.path.join(SAVE_ROOT, object_name, "t1")
+    extrinsics_path = os.path.join(EXTRINSICS_ROOT, "extrinsics.json")
+    object_mesh_path = os.path.join(OBJECT_ROOT, f"{object_name}.stl")
+    save_path = os.path.join(EXTRINSICS_ROOT, f"{object_name}_T.npy")
+    aruco_data_path = os.path.join(DATA_ROOT, object_name, "object_cam0", "t1_obj.pickle")
+    
+    # Prompt for frame number
+    frame_number = int(input(f"Enter frame number to visualize for {object_name}: ").strip())
+    
+    # Point cloud paths
+    cam0_pcd_path = os.path.join(dataset_path, "output0", "pointclouds", f"frame_{frame_number:05d}_full.ply")
+    cam1_pcd_path = os.path.join(dataset_path, "output1", "pointclouds", f"frame_{frame_number:05d}_full.ply")
+    
+    # ---- Load point clouds ----
+    print(f"Loading point clouds for frame {frame_number}...")
+    cam0_pcd = o3d.io.read_point_cloud(cam0_pcd_path)
+    cam1_pcd = o3d.io.read_point_cloud(cam1_pcd_path)
+    
+    # ---- Load extrinsics ----
+    import json
+    with open(extrinsics_path, 'r') as f:
+        extrinsics = json.load(f)
+    T = np.array(extrinsics['T'])
+    T_inv = np.linalg.inv(T)
+    
+    # ---- Transform cam1 to cam0 frame ----
+    cam1_pcd.transform(T_inv)
+    
+    # ---- Load object mesh ----
+    object_mesh = o3d.io.read_triangle_mesh(object_mesh_path)
+    object_mesh.compute_vertex_normals()
+    
+    # ---- Load ArUco marker transformation for this frame ----
+    with open(aruco_data_path, "rb") as f:
+        aruco_data = pickle.load(f)
+    if frame_number >= len(aruco_data):
+        print(f"Frame {frame_number} not in ArUco data (max {len(aruco_data)-1})")
+        return False
+    if aruco_data[frame_number]["transformation"] is None:
+        print(f"No ArUco marker detected in frame {frame_number}")
+        return False
+    object_T = np.array(aruco_data[frame_number]["transformation"])
+    
+    print("Loaded ArUco marker transformation for frame", frame_number)
+    print(object_T)
+    # ---- Initial transformation (identity or load previous) ----
+    fine_tune_T = np.eye(4)
+    if os.path.exists(save_path):
+        try:
+            fine_tune_T = np.load(save_path)
+            if fine_tune_T.shape != (4, 4):
+                print(f"Warning: Loaded transformation from {save_path} is not 4x4, using identity.")
+                fine_tune_T = np.eye(4)
+            else:
+                print(f"Loaded previous transformation from {save_path}")
+        except Exception as e:
+            print(f"Warning: Could not load transformation from {save_path} ({e}), using identity.")
             fine_tune_T = np.eye(4)
-        else:
-            print(f"Loaded previous transformation from {save_path}")
-    except Exception as e:
-        print(f"Warning: Could not load transformation from {save_path} ({e}), using identity.")
-        fine_tune_T = np.eye(4)
-
-# ---- Visualization and interaction ----
-print("\nControls:")
-print("  Arrow keys: translate X/Y")
-print("  0/1: translate Z up/down")
-print("  a/d: rotate Z | w/s: rotate X | q/e: rotate Y")
-print("  r: reset transformation")
-print("  q: save transformation and exit")
-print("  ESC: exit without saving\n")
+    
+    # ---- Visualization and interaction ----
+    print("\nControls:")
+    print("  Arrow keys: translate X/Y")
+    print("  0/1: translate Z up/down")
+    print("  a/d: rotate Z | w/s: rotate X | q/e: rotate Y")
+    print("  r: reset transformation")
+    print("  q: save transformation and exit")
+    print("  Enter: exit without saving\n")
+    
+    vis = FineTuneVisualizer(cam0_pcd, cam1_pcd, object_mesh, fine_tune_T, object_T)
+    should_save, fine_tune_T = vis.run()
+    print("Final transformation matrix:")
+    print(fine_tune_T)
+    if should_save:
+        np.save(save_path, fine_tune_T)
+        print(f"Saved transformation to {save_path}")
+    else:
+        print("Did not save transformation.")
+    
+    return True
 
 # Open3D visualizer with key callbacks
 class FineTuneVisualizer:
@@ -159,10 +186,12 @@ class FineTuneVisualizer:
         self.vis.register_key_callback(ord('W'), lambda vis: rotate('x',  r_step))
         self.vis.register_key_callback(ord('S'), lambda vis: rotate('x', -r_step))
         # q/e: rotate Y
-        self.vis.register_key_callback(ord('Q'), lambda vis: self.save_and_exit())
+        self.vis.register_key_callback(ord('Q'), lambda vis: rotate('y',  r_step))
         self.vis.register_key_callback(ord('E'), lambda vis: rotate('y', -r_step))
         # r: reset
         self.vis.register_key_callback(ord('R'), lambda vis: self.reset())
+        # Enter: save and exit
+        self.vis.register_key_callback(257, lambda vis: self.save_and_exit())
         # ESC: exit without saving
         self.vis.register_key_callback(256, lambda vis: self.exit())
 
@@ -179,12 +208,23 @@ class FineTuneVisualizer:
         self.should_exit = True
 
 if __name__ == "__main__":
-    vis = FineTuneVisualizer(cam0_pcd, cam1_pcd, object_mesh, fine_tune_T, object_T)
-    should_save, fine_tune_T = vis.run()
-    print("Final transformation matrix:")
-    print(fine_tune_T)
-    if should_save:
-        np.save(save_path, fine_tune_T)
-        print(f"Saved transformation to {save_path}")
-    else:
-        print("Did not save transformation.") 
+    print("Available objects:")
+    for i, obj in enumerate(object_directories):
+        print(f"{i+1}. {obj}")
+    
+    while True:
+        try:
+            choice = input("\nEnter object number to process (or 'q' to quit): ").strip()
+            if choice.lower() == 'q':
+                break
+            
+            obj_idx = int(choice) - 1
+            if 0 <= obj_idx < len(object_directories):
+                process_object(object_directories[obj_idx])
+            else:
+                print("Invalid object number. Please try again.")
+        except ValueError:
+            print("Please enter a valid number or 'q' to quit.")
+        except KeyboardInterrupt:
+            print("\nExiting...")
+            break 

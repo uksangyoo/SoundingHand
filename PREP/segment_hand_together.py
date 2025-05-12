@@ -12,8 +12,8 @@ import gc
 from sam2.build_sam import build_sam2_video_predictor
 
 # Constants
-SAM2_CHECKPOINT = "/home/frida/packages/sam2/checkpoints/sam2.1_hiera_small.pt"
-SAM2_CONFIG = "configs/sam2.1/sam2.1_hiera_s.yaml"
+SAM2_CHECKPOINT = "/home/frida/packages/sam2/checkpoints/sam2.1_hiera_large.pt"
+SAM2_CONFIG = "configs/sam2.1/sam2.1_hiera_l.yaml"
 
 # Setup device
 if torch.cuda.is_available():
@@ -773,44 +773,63 @@ def batch_segment_frames(h5_path, base_output_folder, batch_size=300, cam_id=0):
                 # Force CUDA to synchronize and clear cache
                 torch.cuda.synchronize()
 
+def count_point_cloud_files(pointclouds_dir):
+    """Count the number of point cloud files in the directory."""
+    if not os.path.exists(pointclouds_dir):
+        return 0
+    return len([f for f in os.listdir(pointclouds_dir) if f.endswith('_masked.ply')])
+
+def get_total_frames(h5_path):
+    """Get the total number of frames in the H5 file."""
+    with h5py.File(h5_path, 'r') as h5_file:
+        return h5_file['rgb'].shape[0]
+
+def clicks_exist(base_output_folder):
+    """Check if clicks already exist for this output folder."""
+    clicks_folder = os.path.join(base_output_folder, "clicks")
+    if not os.path.exists(clicks_folder):
+        return False
+    return len([f for f in os.listdir(clicks_folder) if f.endswith('.npz')]) > 0
+
 if __name__ == "__main__":
     DATA_ROOT = "/media/frida/Extreme SSD/sounding_hand/yuemin"
-    SAVE_ROOT = "/media/frida/3376a50a-001d-45d9-89a7-589977ec1b04/SoundingHand/yuemin"
-    # object_directories = ["campbell_pla","campbell_real", "cheese", "cheezit", "clamp", 
-    #                       "drill", "juice", "knife", "marker", "mug", "mustard", "ranch",
-    #                       "scissors", "screwdriver", "spam_pla", "spam_real", "wrench"]
-    object_directories = ["campbell_real", "cheese", "cheezit", "clamp", 
+    SAVE_ROOT = "/media/frida/3376a50a-001d-45d9-89a7-589977ec1b04/SoundingHand/DATA/yuemin"
+    object_directories = ["campbell_pla", "campbell_real", "cheese", "cheezit", "clamp", 
                         "drill", "juice", "knife", "marker", "mug", "mustard", "ranch",
                         "scissors", "screwdriver", "spam_pla", "spam_real", "wrench"]
+
+    #object_directories = ["campbell_pla", "campbell_real", "cheese", "cheezit", "clamp"]
+    #object_directories =  ["drill", "juice", "knife", "marker", "mug", "mustard", "ranch"]
+    #object_directories = ["scissors", "screwdriver", "spam_pla", "spam_real", "wrench"]
     
     # First phase: Annotation
-    print("\n=== STARTING ANNOTATION PHASE ===\n")
-    for object_directory in object_directories:
-        save_directory = os.path.join(SAVE_ROOT, object_directory)
-        directory = os.path.join(DATA_ROOT, object_directory, "h5")
+    # print("\n=== STARTING ANNOTATION PHASE ===\n")
+    # for object_directory in object_directories:
+    #     save_directory = os.path.join(SAVE_ROOT, object_directory)
+    #     directory = os.path.join(DATA_ROOT, object_directory, "h5")
 
-        for h5_file in os.listdir(directory):
-            h5_path = os.path.join(directory, h5_file)
+    #     for h5_file in os.listdir(directory):
+    #         h5_path = os.path.join(directory, h5_file)
             
-            # Process camera 0
-            base_output_folder = os.path.join(save_directory, h5_file, "output0")
-            if not os.path.exists(os.path.join(base_output_folder, "pointclouds")):
-                os.makedirs(base_output_folder, exist_ok=True)
-                print(f"\nProcessing annotations for {base_output_folder}")
-                h5_files = sorted([f for f in os.listdir(h5_path) if f.endswith('.h5')])
-                batch_annotate_frames(os.path.join(h5_path, h5_files[0]), base_output_folder, batch_size=700, cam_id=0)
-            else:
-                print(f"Skipping {base_output_folder} - pointclouds directory already exists")
+    #         # Process camera 0
+    #         base_output_folder = os.path.join(save_directory, h5_file, "output0")
+    #         if not clicks_exist(base_output_folder):
+    #             os.makedirs(base_output_folder, exist_ok=True)
+    #             print(f"\nProcessing annotations for {base_output_folder}")
+    #             h5_files = sorted([f for f in os.listdir(h5_path) if f.endswith('.h5')])
+    #             batch_annotate_frames(os.path.join(h5_path, h5_files[0]), base_output_folder, batch_size=700, cam_id=0)
+    #         else:
+    #             print(f"Skipping annotations for {base_output_folder} - clicks already exist")
             
-            # Process camera 1
-            base_output_folder = os.path.join(save_directory, h5_file, "output1")
-            if not os.path.exists(os.path.join(base_output_folder, "pointclouds")):
-                os.makedirs(base_output_folder, exist_ok=True)
-                print(f"\nProcessing annotations for {base_output_folder}")
-                h5_files = sorted([f for f in os.listdir(h5_path) if f.endswith('.h5')])
-                batch_annotate_frames(os.path.join(h5_path, h5_files[1]), base_output_folder, batch_size=700, cam_id=1)
-            else:
-                print(f"Skipping {base_output_folder} - pointclouds directory already exists")
+    #         # Process camera 1
+    #         base_output_folder = os.path.join(save_directory, h5_file, "output1")
+    #         if not clicks_exist(base_output_folder):
+    #             os.makedirs(base_output_folder, exist_ok=True)
+    #             print(f"\nProcessing annotations for {base_output_folder}")
+    #             h5_files = sorted([f for f in os.listdir(h5_path) if f.endswith('.h5')])
+    #             batch_annotate_frames(os.path.join(h5_path, h5_files[1]), base_output_folder, batch_size=700, cam_id=1)
+    #         else:
+    #             print(f"Skipping annotations for {base_output_folder} - clicks already exist")
     
     # Second phase: Segmentation
     print("\n=== STARTING SEGMENTATION PHASE ===\n")
@@ -820,21 +839,32 @@ if __name__ == "__main__":
 
         for h5_file in os.listdir(directory):
             h5_path = os.path.join(directory, h5_file)
+            h5_files = sorted([f for f in os.listdir(h5_path) if f.endswith('.h5')])
             
             # Process camera 0
             base_output_folder = os.path.join(save_directory, h5_file, "output0")
-            if not os.path.exists(os.path.join(base_output_folder, "pointclouds")):
-                print(f"\nProcessing segmentation for {base_output_folder}")
-                h5_files = sorted([f for f in os.listdir(h5_path) if f.endswith('.h5')])
-                batch_segment_frames(os.path.join(h5_path, h5_files[0]), base_output_folder, batch_size=700, cam_id=0)
+            pointclouds_dir = os.path.join(base_output_folder, "pointclouds")
+            h5_path_cam0 = os.path.join(h5_path, h5_files[0])
+            
+            num_pointclouds = count_point_cloud_files(pointclouds_dir)
+            total_frames = get_total_frames(h5_path_cam0)
+            
+            if num_pointclouds < total_frames:
+                print(f"\nProcessing segmentation for {base_output_folder} - {num_pointclouds}/{total_frames} point clouds found")
+                batch_segment_frames(h5_path_cam0, base_output_folder, batch_size=700, cam_id=0)
             else:
-                print(f"Skipping {base_output_folder} - pointclouds directory already exists")
+                print(f"Skipping {base_output_folder} - all {total_frames} point clouds already exist")
             
             # Process camera 1
             base_output_folder = os.path.join(save_directory, h5_file, "output1")
-            if not os.path.exists(os.path.join(base_output_folder, "pointclouds")):
-                print(f"\nProcessing segmentation for {base_output_folder}")
-                h5_files = sorted([f for f in os.listdir(h5_path) if f.endswith('.h5')])
-                batch_segment_frames(os.path.join(h5_path, h5_files[1]), base_output_folder, batch_size=700, cam_id=1)
+            pointclouds_dir = os.path.join(base_output_folder, "pointclouds")
+            h5_path_cam1 = os.path.join(h5_path, h5_files[1])
+            
+            num_pointclouds = count_point_cloud_files(pointclouds_dir)
+            total_frames = get_total_frames(h5_path_cam1)
+            
+            if num_pointclouds < total_frames:
+                print(f"\nProcessing segmentation for {base_output_folder} - {num_pointclouds}/{total_frames} point clouds found")
+                batch_segment_frames(h5_path_cam1, base_output_folder, batch_size=700, cam_id=1)
             else:
-                print(f"Skipping {base_output_folder} - pointclouds directory already exists")
+                print(f"Skipping {base_output_folder} - all {total_frames} point clouds already exist")

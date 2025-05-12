@@ -134,11 +134,10 @@ def visualize_hands(mesh_folder_cam0, mesh_folder_cam1, output_video_path, objec
     mesh_files_cam1 = sorted(glob.glob(os.path.join(mesh_folder_cam1, 'frame_*_hand_1.obj')), 
                        key=lambda x: get_frame_number_from_filename(x))
 
-    print(f"Found {len(mesh_files_cam0)} mesh files in cam0")
-    print(f"Found {len(mesh_files_cam1)} mesh files in cam1")
+    print(f"Processing {len(mesh_files_cam0)} frames from camera 0 and {len(mesh_files_cam1)} frames from camera 1")
     
     if not mesh_files_cam0:
-        raise ValueError(f"No mesh files found in {mesh_files_cam0}")
+        raise ValueError(f"No mesh files found in {mesh_folder_cam0}")
     
     # Create visualizer
     vis = o3d.visualization.Visualizer()
@@ -146,7 +145,6 @@ def visualize_hands(mesh_folder_cam0, mesh_folder_cam1, output_video_path, objec
     
     # Add world coordinate frame (larger size)
     world_frame = create_coordinate_frame(size=0.1)  # World frame
-    # vis.add_geometry(world_frame)
     
     # Store camera parameters that we'll reuse for each frame
     FRONT = [0, -1, 0]  # Look down from top (negative Y direction)
@@ -172,11 +170,9 @@ def visualize_hands(mesh_folder_cam0, mesh_folder_cam1, output_video_path, objec
     with open(aruco_data_path, "rb") as f:
         aruco_data = pickle.load(f)
     
-    # Load wrist ArUco data and print debug info
-    print(f"\nLoading wrist ArUco data from: {wrist_aruco_data_path}")
+    # Load wrist ArUco data
     with open(wrist_aruco_data_path, "rb") as f:
         wrist_aruco_data = pickle.load(f)
-    print(f"Total frames in wrist ArUco data: {len(wrist_aruco_data)}")
     
     # Extract frame numbers from mesh files for processing
     frame_numbers_cam0 = [get_frame_number_from_filename(mesh_path) for mesh_path in mesh_files_cam0]
@@ -207,12 +203,8 @@ def visualize_hands(mesh_folder_cam0, mesh_folder_cam1, output_video_path, objec
         )
 
         if not is_wrist_visible or not is_object_visible:
-            print(f"Skipping frame {frame_number}: Wrist visible={is_wrist_visible}, Object visible={is_object_visible}")
-            # No geometries added yet in this iteration, just continue
             continue # Skip this frame if either marker is not detected
 
-        print(f"\nProcessing frame {frame_number}")
-        
         # Format the frame number for point cloud path with leading zeros (5 digits)
         pc_frame_str = f"{frame_number:05d}"
         
@@ -228,31 +220,27 @@ def visualize_hands(mesh_folder_cam0, mesh_folder_cam1, output_video_path, objec
             segmented_pc_path_cam0 = os.path.join(pc_base_path_cam0, f"frame_{pc_frame_str}_masked.ply")
             
             if os.path.exists(segmented_pc_path_cam0):
-                pc_cam0 = o3d.io.read_point_cloud(pc_path_cam0)
+                #pc_cam0 = o3d.io.read_point_cloud(pc_path_cam0)
                 hand_pc_cam0 = o3d.io.read_point_cloud(segmented_pc_path_cam0)
-                print(f"Loaded {segmented_pc_path_cam0}: {len(hand_pc_cam0.points)} points")
                 # Estimate normals for camera 0's hand point cloud
                 hand_pc_cam0.estimate_normals(
                     search_param=o3d.geometry.KDTreeSearchParamHybrid(radius=0.1, max_nn=30)
                 )
                 hand_pc_cam0.orient_normals_towards_camera_location(camera_location=np.array([0., 0., 0.]))
                 
-                point_clouds.append(pc_cam0)
+                #point_clouds.append(pc_cam0)
                 combined_hand_pc += hand_pc_cam0
         
         # Camera 1 point clouds
-        print("pc_base_path_cam1: ", pc_base_path_cam1)
-        print("cam1_to_cam0: ", cam1_to_cam0)
         if pc_base_path_cam1 and cam1_to_cam0 is not None:
             pc_path_cam1 = os.path.join(pc_base_path_cam1, f"frame_{pc_frame_str}_full.ply")
             segmented_pc_path_cam1 = os.path.join(pc_base_path_cam1, f"frame_{pc_frame_str}_masked.ply")
-            print("segmented_pc_path_cam1: ", segmented_pc_path_cam1)
+            
             if os.path.exists(segmented_pc_path_cam1):
-                pc_cam1 = o3d.io.read_point_cloud(pc_path_cam1)
+               #pc_cam1 = o3d.io.read_point_cloud(pc_path_cam1)
                 hand_pc_cam1 = o3d.io.read_point_cloud(segmented_pc_path_cam1)
-                print(f"Loaded {segmented_pc_path_cam1}: {len(hand_pc_cam1.points)} points")
                 # Transform camera 1's point clouds to camera 0's coordinate frame
-                pc_cam1.transform(cam1_to_cam0)
+                #pc_cam1.transform(cam1_to_cam0)
                 hand_pc_cam1.transform(cam1_to_cam0)
                 # Estimate normals for camera 1's hand point cloud
                 hand_pc_cam1.estimate_normals(
@@ -260,12 +248,10 @@ def visualize_hands(mesh_folder_cam0, mesh_folder_cam1, output_video_path, objec
                 )
                 hand_pc_cam1.orient_normals_towards_camera_location(camera_location=np.array([0., 0., 0.]))
                 
-                point_clouds.append(pc_cam1)
+                #point_clouds.append(pc_cam1)
                 combined_hand_pc += hand_pc_cam1
         
-        print(f"Combined hand point cloud: {len(combined_hand_pc.points)} points")
         if not combined_hand_pc.has_points():
-            print(f"Skipping frame {frame_number}: Combined hand point cloud is empty.")
             continue
 
         # Process hand meshes from both cameras
@@ -275,29 +261,10 @@ def visualize_hands(mesh_folder_cam0, mesh_folder_cam1, output_video_path, objec
             mesh_path = os.path.join(mesh_folder, f'frame_{frame_number}_hand_1.obj')
             
             if not os.path.exists(mesh_path):
-                print(f"Hand mesh not found for camera {camera_id}: {mesh_path}")
                 continue
                 
             # Get wrist transformation
             wrist_T = np.array(wrist_aruco_data[wrist_aruco_idx]["transformation"])
-            print(f"\n=== Wrist Marker Debug (Camera {camera_id}) ===")
-            print("Wrist transformation matrix:")
-            print(wrist_T)
-            
-            # Create a larger coordinate frame for better visibility
-            wrist_frame = create_coordinate_frame(size=0.1)  # Wrist marker frame
-            wrist_frame.transform(wrist_T)
-            #vis.add_geometry(wrist_frame)
-            
-            if hand_fine_tune_T is not None:
-                print(f"\n=== Hand Frame Debug (Camera {camera_id}) ===")
-                hand_frame = create_coordinate_frame(size=0.1)  # Hand frame
-                # Apply both transformations
-                combined_T = np.dot(wrist_T, hand_fine_tune_T)
-                print("Combined transformation matrix:")
-                print(combined_T)
-                hand_frame.transform(combined_T)
-                #vis.add_geometry(hand_frame)
             
             # Load mesh
             mesh = o3d.io.read_triangle_mesh(mesh_path)
@@ -305,9 +272,6 @@ def visualize_hands(mesh_folder_cam0, mesh_folder_cam1, output_video_path, objec
             
             # For camera 1, apply hand_cam1_to_cam0 transformation first if available
             if camera_id == 1 and hand_cam1_to_cam0 is not None:
-                print("\n=== Applying hand_cam1_to_cam0 transformation to camera 1 mesh ===")
-                print("hand_cam1_to_cam0 transformation matrix:")
-                print(hand_cam1_to_cam0)
                 mesh.transform(hand_cam1_to_cam0)
             
             # Then apply wrist marker and fine-tuning transformations
@@ -321,29 +285,15 @@ def visualize_hands(mesh_folder_cam0, mesh_folder_cam1, output_video_path, objec
         if len(meshes) == 2:
             # Get object transformation and transform object mesh
             object_T = np.array(aruco_data[aruco_idx]["transformation"])
-            print("\n=== Object Marker Debug ===")
-            print("Object marker transformation matrix:")
-            print(object_T)
-            
-            # Add coordinate frame at object marker pose
-            object_marker_frame = create_coordinate_frame(size=0.1)  # Object marker frame
-            object_marker_frame.transform(object_T)
-            #vis.add_geometry(object_marker_frame)
             
             # Create a copy of the object mesh and apply transformations
             transformed_object = copy.deepcopy(object_mesh)
             transformed_object.transform(fine_tune_T)
             transformed_object.transform(object_T)
             vis.add_geometry(transformed_object)
-            geometries_to_remove.append(transformed_object) # Track added geometry
+            geometries_to_remove.append(transformed_object)
 
-
-            #combined hand pc should be voxel downsampled 
-           
-            #also remove statistical outliers
-            #combined_hand_pc, _ = combined_hand_pc.remove_statistical_outlier(nb_neighbors=20, std_ratio=0.1)
             # Blend the meshes
-            print("\n=== Blending Meshes ===")
             blended_mesh = blend_meshes(
                 meshes[0], meshes[1],
                 hand_pc_cam0, hand_pc_cam1,
@@ -353,37 +303,31 @@ def visualize_hands(mesh_folder_cam0, mesh_folder_cam1, output_video_path, objec
             )
 
             # --- Chamfer Distance Check ---
-            CHAMFER_THRESHOLD_SQ = 0.0003 # Threshold for average *squared* distance (e.g., 0.01m -> 0.0001m^2)
+            CHAMFER_THRESHOLD_SQ = 0.001
             chamfer_dist_sq = compute_chamfer_distance(blended_mesh, combined_hand_pc)
-            print(f"Frame {frame_number}: Avg Squared Chamfer distance = {chamfer_dist_sq:.6f}")
 
             if chamfer_dist_sq > CHAMFER_THRESHOLD_SQ or not combined_hand_pc.has_points():
-                skip_reason = "High Chamfer distance" if combined_hand_pc.has_points() else "Empty combined point cloud"
-                print(f"Skipping frame {frame_number}: {skip_reason} ({chamfer_dist_sq:.6f} > {CHAMFER_THRESHOLD_SQ})")
-                # Clean up geometries added *in this iteration* before skipping
+                # Clean up geometries added in this iteration before skipping
                 for geom in geometries_to_remove:
                     vis.remove_geometry(geom, reset_bounding_box=False)
-                continue # Skip the rest of the processing for this frame
-            # --- End Chamfer Distance Check ---
+                continue
 
             # Compute contact labels for blended mesh
             contact_labels = label_hand_contacts(blended_mesh, transformed_object, contact_radius=contact_radius)
 
-            # Save contact labels as .npy in both mesh folders
+            # Save contact labels
             contact_label_path = os.path.join(output_video_path, f"frame_{frame_number}_hand_contact_labels_blended.npy")
             np.save(contact_label_path, contact_labels)
-            print(f"Saved blended contact labels to {contact_label_path}")
 
             # Color blended mesh based on contact
             colors = np.zeros_like(np.asarray(blended_mesh.vertices))
             colors[contact_labels == 1] = [0, 1, 0]  # Green for contact
             colors[contact_labels == 0] = [1, 0, 0]  # Red for no contact
             blended_mesh.vertex_colors = o3d.utility.Vector3dVector(colors)
-            #save blended mesh
             o3d.io.write_triangle_mesh(os.path.join(output_video_path, f"frame_{frame_number}_hand_blended.ply"), blended_mesh)
-            # Add blended mesh to visualizer (only if Chamfer check passed)
+            
             vis.add_geometry(blended_mesh)
-            geometries_to_remove.append(blended_mesh) # Track added geometry
+            geometries_to_remove.append(blended_mesh)
         
         # Reset camera view for consistency
         ctr = vis.get_view_control()
@@ -405,10 +349,10 @@ def visualize_hands(mesh_folder_cam0, mesh_folder_cam1, output_video_path, objec
         
         # Remove geometries added in this frame iteration
         for geom in geometries_to_remove:
-            vis.remove_geometry(geom, reset_bounding_box=False) # Use False for efficiency within loop
+            vis.remove_geometry(geom, reset_bounding_box=False)
     
     # Cleanup
-    vis.update_renderer() # Update final view state once after loop
+    vis.update_renderer()
     video_writer.release()
     vis.destroy_window()
 
@@ -422,19 +366,6 @@ def opencv_to_open3d_transform():
 def blend_meshes(mesh_cam0, mesh_cam1, hand_pc_cam0, hand_pc_cam1, combined_hand_pc, control_indices, static_indices):
     """
     Blend two meshes based on their proximity to the point cloud at control points.
-    First performs ICP to align each mesh with its corresponding camera's point cloud, then blends based on proximity.
-    
-    Args:
-        mesh_cam0: o3d.geometry.TriangleMesh from camera 0
-        mesh_cam1: o3d.geometry.TriangleMesh from camera 1
-        hand_pc_cam0: o3d.geometry.PointCloud of hand from camera 0
-        hand_pc_cam1: o3d.geometry.PointCloud of hand from camera 1
-        combined_hand_pc: o3d.geometry.PointCloud of the combined hand point cloud
-        control_indices: np.array of indices for control vertices
-        static_indices: np.array of indices for static vertices
-    
-    Returns:
-        o3d.geometry.TriangleMesh: The blended mesh
     """
     # First perform ICP for both meshes with their corresponding point clouds
     aligned_meshes = []
@@ -445,16 +376,14 @@ def blend_meshes(mesh_cam0, mesh_cam1, hand_pc_cam0, hand_pc_cam1, combined_hand
     mesh_pcd_0.estimate_normals()
     combined_hand_pc = combined_hand_pc.voxel_down_sample(voxel_size=0.003)
     combined_hand_pc, _ = combined_hand_pc.remove_statistical_outlier(nb_neighbors=20, std_ratio=0.1)
-    print("\n=== ICP Registration Camera 0 ===")
+    
     icp_result_0 = o3d.pipelines.registration.registration_icp(
         mesh_pcd_0, combined_hand_pc,
-        max_correspondence_distance=0.05,  # 5mm is more reasonable for hand-scale alignment
+        max_correspondence_distance=0.05,
         init=np.eye(4),
         estimation_method=o3d.pipelines.registration.TransformationEstimationPointToPoint(),
         criteria=o3d.pipelines.registration.ICPConvergenceCriteria(max_iteration=100)
     )
-    
-
     
     aligned_mesh_0 = copy.deepcopy(mesh_cam0)
     aligned_mesh_0.transform(icp_result_0.transformation)
@@ -465,7 +394,6 @@ def blend_meshes(mesh_cam0, mesh_cam1, hand_pc_cam0, hand_pc_cam1, combined_hand
     mesh_pcd_1.points = mesh_cam1.vertices
     mesh_pcd_1.estimate_normals()
     
-    print("\n=== ICP Registration Camera 1 ===")
     icp_result_1 = o3d.pipelines.registration.registration_icp(
         mesh_pcd_1, combined_hand_pc,
         max_correspondence_distance=0.05,
@@ -473,8 +401,6 @@ def blend_meshes(mesh_cam0, mesh_cam1, hand_pc_cam0, hand_pc_cam1, combined_hand
         estimation_method=o3d.pipelines.registration.TransformationEstimationPointToPoint(),
         criteria=o3d.pipelines.registration.ICPConvergenceCriteria(max_iteration=100)
     )
-    
-
     
     aligned_mesh_1 = copy.deepcopy(mesh_cam1)
     aligned_mesh_1.transform(icp_result_1.transformation)
@@ -498,20 +424,12 @@ def blend_meshes(mesh_cam0, mesh_cam1, hand_pc_cam0, hand_pc_cam1, combined_hand
     # Count how many control points are closer in each mesh
     cam0_closer = np.sum(dists_cam0 < dists_cam1)
     cam1_closer = np.sum(dists_cam1 < dists_cam0)
-
-    
-    print(f"Control points closer: cam0={cam0_closer}, cam1={cam1_closer}")
     
     # If cam1 has no closer control points, there will be no deformation
     if cam1_closer == 0:
-        print("WARNING: No control points from camera 1 are closer to the point cloud")
-        print("This will result in no deformation, and the output will be identical to mesh_cam0")
         return mesh_cam0
     
-    print("Blending meshes using ARAP deformation")
-    
     # Otherwise, perform ARAP deformation
-    # Start with mesh_cam0 and deform it towards mesh_cam1 where cam1 is closer
     blended_mesh = copy.deepcopy(mesh_cam0)
     
     # Create constraint vertices and positions
@@ -519,56 +437,30 @@ def blend_meshes(mesh_cam0, mesh_cam1, hand_pc_cam0, hand_pc_cam1, combined_hand
     constraint_positions = []
     
     # Add static constraints
-    print(f"Adding {len(static_indices)} static constraints")
     for idx in static_indices:
         constraint_vertices.append(int(idx))
         constraint_positions.append(verts_cam0[idx].tolist())
     
     # Add control point constraints where cam1 is closer
     control_points_used = 0
-
-
     for i, ctrl_idx in enumerate(control_indices):
         if dists_cam1[i] < dists_cam0[i]:
             constraint_vertices.append(int(ctrl_idx))
             constraint_positions.append(verts_cam1[ctrl_idx].tolist())
             control_points_used += 1
-
     
-    
-    # Print debug info about constraint distance
-    if control_points_used > 0:
-        constraint_diffs = []
-        for i, ctrl_idx in enumerate(control_indices):
-            if dists_cam1[i] < dists_cam0[i]:
-                diff = np.linalg.norm(verts_cam1[ctrl_idx] - verts_cam0[ctrl_idx])
-                constraint_diffs.append(diff)
-                print(f"Control point {ctrl_idx}: displacement = {diff:.6f}")
-        
-        if constraint_diffs:
-            print(f"Average constraint displacement: {np.mean(constraint_diffs):.6f}")
-            print(f"Max constraint displacement: {np.max(constraint_diffs):.6f}")
-
     # Convert to Open3D types
     constraint_vertices = o3d.utility.IntVector(constraint_vertices)
     constraint_positions = o3d.utility.Vector3dVector(constraint_positions)
     
     # Perform ARAP deformation
-    with o3d.utility.VerbosityContextManager(o3d.utility.VerbosityLevel.Debug) as cm:
-        blended_mesh = blended_mesh.deform_as_rigid_as_possible(
-            constraint_vertex_indices=constraint_vertices,
-            constraint_vertex_positions=constraint_positions,
-            max_iter=1000,
-            energy=o3d.geometry.DeformAsRigidAsPossibleEnergy.Smoothed,
-            smoothed_alpha=0.01
-        )
-    
-
-    max_disp = np.max(np.linalg.norm(np.asarray(blended_mesh.vertices) - np.asarray(mesh_cam0.vertices), axis=1))
-    print(f"Max Vertex Displacement: {max_disp:.6f}")
-    print("Average dists_cam1:", np.mean(dists_cam1))
-    print("Average dists_cam0:", np.mean(dists_cam0))
-
+    blended_mesh = blended_mesh.deform_as_rigid_as_possible(
+        constraint_vertex_indices=constraint_vertices,
+        constraint_vertex_positions=constraint_positions,
+        max_iter=100,
+        energy=o3d.geometry.DeformAsRigidAsPossibleEnergy.Smoothed,
+        smoothed_alpha=0.01
+    )
     
     return blended_mesh
 
@@ -582,7 +474,6 @@ def visualize_frame(mesh_folder_cam0, mesh_folder_cam1, frame_num, output_video_
     
     # Add world coordinate frame (larger size)
     world_frame = create_coordinate_frame(size=0.1)  # World frame
-    #vis.add_geometry(world_frame)
     
     # Setup camera to match OpenCV convention
     ctr = vis.get_view_control()
@@ -680,8 +571,6 @@ def visualize_frame(mesh_folder_cam0, mesh_folder_cam1, frame_num, output_video_
         return
 
     # Add point clouds to visualizer
-    # for pc in point_clouds:
-    #     vis.add_geometry(pc)
     combined_hand_pc.paint_uniform_color([0.8, 0.6, 0.8])
     vis.add_geometry(combined_hand_pc)
     # Process hand meshes from both cameras
@@ -703,7 +592,6 @@ def visualize_frame(mesh_folder_cam0, mesh_folder_cam1, frame_num, output_video_
         # Create a larger coordinate frame for better visibility
         wrist_frame = create_coordinate_frame(size=0.1)  # Wrist marker frame
         wrist_frame.transform(wrist_T)
-        #vis.add_geometry(wrist_frame)
         
         if hand_fine_tune_T is not None:
             print(f"\n=== Hand Frame Debug (Camera {camera_id}) ===")
@@ -713,7 +601,6 @@ def visualize_frame(mesh_folder_cam0, mesh_folder_cam1, frame_num, output_video_
             print("Combined transformation matrix:")
             print(combined_T)
             hand_frame.transform(combined_T)
-            #vis.add_geometry(hand_frame)
         
         # Load mesh
         mesh = o3d.io.read_triangle_mesh(mesh_path)
@@ -721,9 +608,6 @@ def visualize_frame(mesh_folder_cam0, mesh_folder_cam1, frame_num, output_video_
         
         # For camera 1, apply hand_cam1_to_cam0 transformation first if available
         if camera_id == 1 and hand_cam1_to_cam0 is not None:
-            print("\n=== Applying hand_cam1_to_cam0 transformation to camera 1 mesh ===")
-            print("hand_cam1_to_cam0 transformation matrix:")
-            print(hand_cam1_to_cam0)
             mesh.transform(hand_cam1_to_cam0)
         
         # Then apply wrist marker and fine-tuning transformations
@@ -737,14 +621,10 @@ def visualize_frame(mesh_folder_cam0, mesh_folder_cam1, frame_num, output_video_
     if len(meshes) == 2:
         # Get object transformation and transform object mesh
         object_T = np.array(aruco_data[frame_num]["transformation"])
-        print("\n=== Object Marker Debug ===")
-        print("Object marker transformation matrix:")
-        print(object_T)
         
         # Add coordinate frame at object marker pose
         object_marker_frame = create_coordinate_frame(size=0.1)  # Object marker frame
         object_marker_frame.transform(object_T)
-        #vis.add_geometry(object_marker_frame)
         
         # Create a copy of the object mesh and apply transformations
         transformed_object = copy.deepcopy(object_mesh)
@@ -761,10 +641,6 @@ def visualize_frame(mesh_folder_cam0, mesh_folder_cam1, frame_num, output_video_
             control_indices,
             static_indices
         )
-        # vis.add_geometry(meshes[0])
-        # #paint meshes[1] light purple
-        # meshes[1].paint_uniform_color([0.8, 0.6, 0.8])  # Light purple color
-        # vis.add_geometry(meshes[1])
         
         # Create visualization meshes directory
         vis_meshes_dir = os.path.join(mesh_folder_cam0, "visualization_meshes")
@@ -777,7 +653,6 @@ def visualize_frame(mesh_folder_cam0, mesh_folder_cam1, frame_num, output_video_
         o3d.io.write_triangle_mesh(os.path.join(vis_meshes_dir, f"frame_{frame_num}_blended_mesh.obj"), blended_mesh)
         
         print(f"Saved visualization meshes to {vis_meshes_dir}")
-
 
         # Compute contact labels for blended mesh
         contact_labels = label_hand_contacts(blended_mesh, transformed_object, contact_radius=contact_radius)
@@ -801,10 +676,16 @@ def visualize_frame(mesh_folder_cam0, mesh_folder_cam1, frame_num, output_video_
     vis.destroy_window()
 
 if __name__ == "__main__":
-    DATA_ROOT = "/media/frida/Extreme SSD/sounding_hand/0422"
-    SAVE_ROOT = "/media/frida/3376a50a-001d-45d9-89a7-589977ec1b04/SoundingHand/DATA"
-    # object_directories = ["campbell_pla", "spam_pla"]
-    object_directories = ["campbell_pla"]
+    DATA_ROOT = "/media/frida/Extreme SSD/sounding_hand/yuemin"
+    SAVE_ROOT = "/media/frida/3376a50a-001d-45d9-89a7-589977ec1b04/SoundingHand/DATA/yuemin"
+    OBJECT_ROOT = "/media/frida/3376a50a-001d-45d9-89a7-589977ec1b04/SoundingHand/Object"
+    CAM_INTRINSICS_EXTRINSICS_ROOT = "/media/frida/3376a50a-001d-45d9-89a7-589977ec1b04/SoundingHand/DATA/cam_intrinsics_extrinsics"
+    object_directories = [
+        "spam_pla","campbell_pla", "campbell_real", "cheese", "cheezit",
+        "clamp", "drill", "juice", "knife", "marker", "mug",
+        "mustard", "ranch", "scissors", "screwdriver", 
+        "spam_real", "wrench"
+    ]
     for object_directory in object_directories:
         save_directory = os.path.join(SAVE_ROOT, object_directory)
         data_directory = os.path.join(DATA_ROOT, object_directory)
@@ -815,74 +696,68 @@ if __name__ == "__main__":
             if not os.path.isdir(trial_dir):
                 continue
             print(f"Processing {object_directory} trial {trial_name}")
-            # Set up paths for meshes, pointclouds, arap indices, etc.
             
+            # Set up paths for meshes, pointclouds, arap indices, etc.
             mesh_folder_cam0 = os.path.join(save_directory, trial_name, "output0", "hands")
             mesh_folder_cam1 = os.path.join(save_directory, trial_name, "output1", "hands")
             output_video_path = os.path.join(save_directory, trial_name, "output_merged")
             os.makedirs(output_video_path, exist_ok=True)
-            object_mesh_path = os.path.join(SAVE_ROOT, "objects", object_directory + ".stl")
+            object_mesh_path = os.path.join(OBJECT_ROOT, object_directory + ".stl")
+            
             # New ArUco data paths
             aruco_data_path = os.path.join(data_directory, f"object_cam0/t{trial_name[-1]}_obj.pickle")
             wrist_aruco_data_path = os.path.join(data_directory, f"wrist_cam0/t{trial_name[-1]}_wri.pickle")
+            
             # Point cloud base paths
             pc_base_path_cam0 = os.path.join(save_directory, trial_name, "output0", "pointclouds")
-
             pc_base_path_cam1 = os.path.join(save_directory, trial_name, "output1", "pointclouds")
-            print("pc_base_path_cam0: ", pc_base_path_cam0)
-            print("pc_base_path_cam1: ", pc_base_path_cam1)
+            
             # Camera transformation matrices
-            cam1_to_cam0_path = "camera_intrinsics_extrinsics/cam1_to_cam0.npy"
+            cam1_to_cam0_path = CAM_INTRINSICS_EXTRINSICS_ROOT +"/cam1_to_cam0.npy"
             if not os.path.exists(cam1_to_cam0_path):
                 print(f"Missing cam1_to_cam0: {cam1_to_cam0_path}")
                 continue
             cam1_to_cam0 = np.load(cam1_to_cam0_path)
-            hand_cam1_to_cam0_path =  "camera_intrinsics_extrinsics/hand_cam1_to_cam0.npy"
+            
+            hand_cam1_to_cam0_path =  CAM_INTRINSICS_EXTRINSICS_ROOT + "/hand_cam1_to_cam0.npy"
             if not os.path.exists(hand_cam1_to_cam0_path):
                 print(f"Missing hand_cam1_to_cam0: {hand_cam1_to_cam0_path}")
                 continue
             hand_cam1_to_cam0 = np.load(hand_cam1_to_cam0_path)
+            
             # ARAP indices
-            arap_indices_path = "camera_intrinsics_extrinsics/arap_indices.npz"
+            arap_indices_path = CAM_INTRINSICS_EXTRINSICS_ROOT + "/arap_indices.npz"
             if not os.path.exists(arap_indices_path):
                 print(f"Missing arap_indices: {arap_indices_path}")
                 continue
             arap_indices = np.load(arap_indices_path)
             static_indices = arap_indices["static_indices"]
             control_indices = arap_indices["control_indices"]
-            # Fine-tuning transformations (load from file if available)
-            fine_tune_T_path = os.path.join("camera_intrinsics_extrinsics", f"{object_directory}_T.npy")
+            
+            # Fine-tuning transformations
+            fine_tune_T_path = os.path.join(CAM_INTRINSICS_EXTRINSICS_ROOT, f"{object_directory}_T.npy")
             if os.path.exists(fine_tune_T_path):
                 fine_tune_T = np.load(fine_tune_T_path)
-                print(f"Loaded fine-tuned object transformation from {fine_tune_T_path}")
             else:
                 print(f"Warning: Fine-tuned object transformation not found at {fine_tune_T_path}, using default.")
                 fine_tune_T = np.eye(4)
                 fine_tune_T[:3, 3] = [0.025, 0.025, 0.01]
                 fine_tune_T[:3, :3] = R.from_euler('xyz', [0, 0, 180], degrees=True).as_matrix()
+            
             hand_fine_tune_T_cam0 = np.eye(4)
             hand_fine_tune_T_cam0[:3, 3] = [0.1, 0.00, -0.01]
             hand_fine_tune_T_cam0[:3, :3] = R.from_euler('xyz', [180, 0, 180], degrees=True).as_matrix()
             hand_fine_tune_T_cam1 = np.eye(4)
             hand_fine_tune_T_cam1[:3, 3] = [0.1, 0.00, -0.01]
             hand_fine_tune_T_cam1[:3, :3] = R.from_euler('xyz', [180, 0, 180], degrees=True).as_matrix()
+            
             # Run visualization and contact labeling
             visualize_hands(
                 mesh_folder_cam0, mesh_folder_cam1, output_video_path,
                 object_mesh_path, aruco_data_path, wrist_aruco_data_path,
-                fine_tune_T, hand_fine_tune_T_cam0, hand_fine_tune_T_cam1, fps=20, marker_id=1,
+                fine_tune_T, hand_fine_tune_T_cam0, hand_fine_tune_T_cam1, fps=30, marker_id=1,
                 wrist_marker_id=0, pc_base_path_cam0=pc_base_path_cam0,
                 pc_base_path_cam1=pc_base_path_cam1, cam1_to_cam0=cam1_to_cam0,
                 contact_radius=0.01, control_indices=control_indices, static_indices=static_indices,
                 hand_cam1_to_cam0=hand_cam1_to_cam0
             )
-            # Optionally, visualize a single frame (e.g., frame 1000)
-            # visualize_frame(
-            #     mesh_folder_cam0, mesh_folder_cam1, 1198, output_video_path,
-            #     object_mesh_path, aruco_data_path, wrist_aruco_data_path,
-            #     fine_tune_T, hand_fine_tune_T_cam0, hand_fine_tune_T_cam1, fps=20, marker_id=1,
-            #     wrist_marker_id=0, pc_base_path_cam0=pc_base_path_cam0,
-            #     pc_base_path_cam1=pc_base_path_cam1, cam1_to_cam0=cam1_to_cam0,
-            #     contact_radius=0.01, control_indices=control_indices, static_indices=static_indices,
-            #     hand_cam1_to_cam0=hand_cam1_to_cam0
-            # )

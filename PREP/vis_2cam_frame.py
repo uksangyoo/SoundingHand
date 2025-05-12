@@ -4,8 +4,8 @@ import json
 from scipy.spatial.transform import Rotation as R
 import copy
 
-dataset_path = "/media/frida/3376a50a-001d-45d9-89a7-589977ec1b04/SoundingHand/DATA/campbell_pla/t1"
-extrinsics_path = "camera_intrinsics_extrinsics/extrinsics.json"
+dataset_path = "/media/frida/3376a50a-001d-45d9-89a7-589977ec1b04/SoundingHand/DATA/yuemin/campbell_pla/t1"
+extrinsics_path = "/media/frida/3376a50a-001d-45d9-89a7-589977ec1b04/SoundingHand/DATA/cam_intrinsics_extrinsics/extrinsics.json"
 frame_number = 100
 use_saved = False
 
